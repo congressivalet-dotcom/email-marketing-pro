@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Table
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
 
@@ -8,8 +8,9 @@ recipient_list_association = Table(
     "recipient_list_association",
     Base.metadata,
     Column("list_id", Integer, ForeignKey("recipient_lists.id"), primary_key=True),
-    Column("recipient_id", Integer, ForeignKey("recipients.id"), primary_key=True)
+    Column("recipient_id", Integer, ForeignKey("recipients.id"), primary_key=True),
 )
+
 
 class Recipient(Base):
     __tablename__ = "recipients"
@@ -24,7 +25,12 @@ class Recipient(Base):
     var5 = Column(String, default="")
     status = Column(String, default="pending")
     attachment_filename = Column(String, default="")
-    lists = relationship("RecipientList", secondary=recipient_list_association, back_populates="recipients")
+    lists = relationship(
+        "RecipientList",
+        secondary=recipient_list_association,
+        back_populates="recipients",
+    )
+
 
 class RecipientList(Base):
     __tablename__ = "recipient_lists"
@@ -32,7 +38,12 @@ class RecipientList(Base):
     name = Column(String, unique=True, nullable=False)
     description = Column(String, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
-    recipients = relationship("Recipient", secondary=recipient_list_association, back_populates="lists")
+    recipients = relationship(
+        "Recipient",
+        secondary=recipient_list_association,
+        back_populates="lists",
+    )
+
 
 class Template(Base):
     __tablename__ = "templates"
@@ -42,6 +53,7 @@ class Template(Base):
     html_content = Column(Text, nullable=False)
     attachment_path = Column(String, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class Campaign(Base):
     __tablename__ = "campaigns"
@@ -54,21 +66,36 @@ class Campaign(Base):
     list = relationship("RecipientList")
     template = relationship("Template")
 
+
 class EmailEvent(Base):
     __tablename__ = "email_events"
     id = Column(Integer, primary_key=True, index=True)
     track_id = Column(String, index=True)
-    email = Column(String, index=True)
+    email = Column(String, index=True, default="")
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)
     event_type = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    ip = Column(String)
-    user_agent = Column(String)
+    ip = Column(String, default="")
+    user_agent = Column(String, default="")
 
-# ✅ NUOVO: Tabella per la cronologia degli invii
+
 class CampaignLog(Base):
     __tablename__ = "campaign_logs"
     id = Column(Integer, primary_key=True, index=True)
-    campaign_id = Column(Integer, ForeignKey("campaigns.id"))
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), index=True)
     recipient_id = Column(Integer, ForeignKey("recipients.id"))
+    track_id = Column(String, default="", index=True)
     status = Column(String, default="sent")
     sent_at = Column(DateTime, default=datetime.utcnow)
+    recipient = relationship("Recipient")
+
+
+class TrackingLink(Base):
+    """Sostituisce il file links_registry.json (più sicuro su filesystem effimero come Render)."""
+    __tablename__ = "tracking_links"
+    id = Column(Integer, primary_key=True, index=True)
+    link_id = Column(String, unique=True, index=True, nullable=False)
+    url = Column(Text, nullable=False)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)
+    email = Column(String, default="", index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
