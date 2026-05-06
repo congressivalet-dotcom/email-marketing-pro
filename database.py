@@ -6,14 +6,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Usa Path per risolvere correttamente i percorsi su Windows
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = os.getenv("DATABASE_URL") or f"sqlite:///{BASE_DIR / 'data' / 'emails.db'}"
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# Assicurati che la cartella esista
-os.makedirs(BASE_DIR / "data", exist_ok=True)
+DB_PATH = f"sqlite:///{DATA_DIR / 'emails.db'}"
 
-engine = create_engine(DB_PATH, connect_args={"check_same_thread": False} if "sqlite" in DB_PATH else {})
+engine = create_engine(DB_PATH, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
