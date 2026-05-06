@@ -33,6 +33,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Email Marketing Pro")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,7 @@ def send_email(
         html = inject_tracking(html, track_id, campaign_id=campaign_id, recipient_email=to)
 
     msg = MIMEMultipart("mixed")
-    from_addr = SMTP_USER if PROVIDER == "smtp" and SMTP_USER else "noreply@example.com"
+    from_addr = SMTP_FROM_EMAIL if PROVIDER == "smtp" and SMTP_FROM_EMAIL else "noreply@example.com"
     msg["From"] = f"{SMTP_FROM_NAME} <{from_addr}>"
     msg["To"] = to
     msg["Subject"] = subject
