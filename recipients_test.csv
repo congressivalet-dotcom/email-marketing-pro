@@ -1,0 +1,3 @@
+email,nome,template,subject,send_time,status
+mario@test.it,Mario,welcome.html,Benvenuto Mario,2026-05-01 10:00,pending
+lucia@test.it,Lucia,welcome.html,Offerta Lucia,2026-05-01 12:00,pending

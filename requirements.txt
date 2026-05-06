@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+itsdangerous
+passlib[bcrypt]
+bcrypt==3.2.2
+sqlalchemy
+apscheduler
+python-dotenv
+jinja2
+requests
