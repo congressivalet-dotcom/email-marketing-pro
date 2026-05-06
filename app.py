@@ -437,9 +437,9 @@ setInterval(loadStats, 30000);
 def api_test(req: Request = Depends(require_auth)):
     try:
         ok, _ = send_email(
-            "test@prova.it", "Test Email Marketing Pro",
+            "sclerotherapycongress@gmail.com", "Test Email Marketing Pro",
             "<h1>Email di test</h1><p>Questa è un'email di prova generata dal sistema.</p>"
-            '<p><a href="https://example.com">Clicca qui per testare il tracking</a></p>',
+            '<p><a href="https://valet.it">Clicca qui per testare il tracking</a></p>',
         )
         return HTMLResponse("✅ Email di test inviata correttamente" if ok else "❌ Errore invio test", status_code=200 if ok else 500)
     except Exception as e:
