@@ -13,6 +13,8 @@ import os
 import uuid
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
+ITALY_TZ = ZoneInfo("Europe/Rome")
 from jinja2 import Environment, select_autoescape
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -130,7 +132,7 @@ def check_campaigns():
     """Job dello scheduler: cerca campagne pending con data passata."""
     db = SessionLocal()
     try:
-        now = datetime.now()
+        now = datetime.now(ITALY_TZ).replace(tzinfo=None)
         camps = (
             db.query(Campaign)
             .filter(Campaign.status == "scheduled", Campaign.scheduled_at <= now)
