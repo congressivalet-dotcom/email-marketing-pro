@@ -14,7 +14,6 @@ import uuid
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
-ITALY_TZ = ZoneInfo("Europe/Rome")
 from jinja2 import Environment, select_autoescape
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -25,6 +24,13 @@ from email_service import send_email
 logger = logging.getLogger(__name__)
 scheduler = BackgroundScheduler()
 jinja_env = Environment(autoescape=select_autoescape(["html", "xml"]))
+
+ITALY_TZ = ZoneInfo("Europe/Rome")
+
+
+def _now_italy():
+    """Datetime corrente in fuso orario italiano (senza tzinfo per compatibilità DB)."""
+    return datetime.now(ITALY_TZ).replace(tzinfo=None)
 
 
 def _build_context(recipient, campaign_name: str) -> dict:
@@ -41,15 +47,18 @@ def _build_context(recipient, campaign_name: str) -> dict:
     }
 
 
-def _resolve_attachment(recipient, template) -> str:
-    """Restituisce il path dell'allegato da usare (personale o del template)."""
+def _resolve_attachments(recipient, template) -> list:
+    """Restituisce la lista degli allegati da usare (template + personale insieme)."""
+    paths = []
+    # Allegato del template (se esiste)
+    if template.attachment_path and os.path.exists(template.attachment_path):
+        paths.append(template.attachment_path)
+    # Allegato personale del destinatario (se esiste)
     if recipient.attachment_filename:
         pers_path = os.path.join("uploads", "personalized", recipient.attachment_filename)
         if os.path.exists(pers_path):
-            return pers_path
-    if template.attachment_path and os.path.exists(template.attachment_path):
-        return template.attachment_path
-    return None
+            paths.append(pers_path)
+    return paths
 
 
 def _process_campaign(db, c: Campaign) -> int:
@@ -80,7 +89,7 @@ def _process_campaign(db, c: Campaign) -> int:
         try:
             ctx = _build_context(r, c.name)
             html = jinja_env.from_string(tpl.html_content).render(**ctx)
-            attachment = _resolve_attachment(r, tpl)
+            attachments = _resolve_attachments(r, tpl)
 
             track_id = uuid.uuid4().hex
             ok, _ = send_email(
@@ -88,7 +97,7 @@ def _process_campaign(db, c: Campaign) -> int:
                 tpl.subject,
                 html,
                 track=True,
-                attachment_path=attachment,
+                attachment_paths=attachments,
                 campaign_id=c.id,
                 track_id=track_id,
             )
@@ -101,6 +110,7 @@ def _process_campaign(db, c: Campaign) -> int:
                         recipient_id=r.id,
                         track_id=track_id,
                         status="sent",
+                        sent_at=_now_italy(),
                     )
                 )
                 logger.info(f"   ✅ Inviato a {r.email}")
@@ -111,6 +121,7 @@ def _process_campaign(db, c: Campaign) -> int:
                         recipient_id=r.id,
                         track_id=track_id,
                         status="failed",
+                        sent_at=_now_italy(),
                     )
                 )
                 logger.warning(f"   ⚠️  Fallito invio a {r.email}")
@@ -132,7 +143,7 @@ def check_campaigns():
     """Job dello scheduler: cerca campagne pending con data passata."""
     db = SessionLocal()
     try:
-        now = datetime.now(ITALY_TZ).replace(tzinfo=None)
+        now = _now_italy()
         camps = (
             db.query(Campaign)
             .filter(Campaign.status == "scheduled", Campaign.scheduled_at <= now)

@@ -93,7 +93,7 @@ def inject_tracking(html: str, track_id: str, campaign_id: int = None, recipient
 
 
 def _add_unsubscribe_footer(html: str, recipient_email: str) -> str:
-    """Aggiunge il footer di unsubscribe se non già presente."""
+    """Aggiunge il footer di unsubscribe (bilingue IT/EN) se non già presente."""
     if "unsubscribe" in html.lower():
         return html
     unsub_link = f"{APP_BASE}/unsubscribe?email={urllib.parse.quote(recipient_email, safe='')}"
@@ -101,10 +101,14 @@ def _add_unsubscribe_footer(html: str, recipient_email: str) -> str:
         '<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;'
         'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;'
         'font-size:12px;color:#64748b;text-align:center;line-height:1.6;">'
-        f'Hai ricevuto questa email perché sei iscritto alla nostra mailing list.<br>'
+        f'<p style="margin:0 0 6px;">Hai ricevuto questa email perché sei iscritto alla nostra mailing list. '
         f'Se non desideri più ricevere queste comunicazioni, '
         f'<a href="{unsub_link}" style="color:#4f46e5;text-decoration:underline;">'
-        f'clicca qui per disiscriverti</a>.'
+        f'clicca qui per disiscriverti</a>.</p>'
+        f'<p style="margin:0;color:#94a3b8;">You received this email because you are subscribed to our mailing list. '
+        f'If you no longer wish to receive these communications, '
+        f'<a href="{unsub_link}" style="color:#4f46e5;text-decoration:underline;">'
+        f'click here to unsubscribe</a>.</p>'
         '</div>'
     )
     if "</body>" in html.lower():
@@ -118,6 +122,7 @@ def send_email(
     html: str,
     track: bool = True,
     attachment_path: str = None,
+    attachment_paths: list = None,
     campaign_id: int = None,
     track_id: str = None,
 ) -> tuple:
@@ -126,6 +131,8 @@ def send_email(
 
     - track_id: se fornito viene usato, altrimenti generato; consente di legare
       l'evento di apertura al CampaignLog.
+    - attachment_path: singolo file (legacy, mantenuto per retrocompatibilità).
+    - attachment_paths: lista di file. Se fornita, ha precedenza su attachment_path.
     """
     if track_id is None:
         track_id = uuid.uuid4().hex
@@ -145,22 +152,45 @@ def send_email(
     alt.attach(MIMEText(html, "html", "utf-8"))
     msg.attach(alt)
 
-    if attachment_path and os.path.exists(attachment_path):
+    # Costruisce la lista finale di allegati da aggiungere
+    paths_to_attach = []
+    if attachment_paths:
+        paths_to_attach.extend([p for p in attachment_paths if p])
+    elif attachment_path:
+        paths_to_attach.append(attachment_path)
+
+    # Rimuovi duplicati mantenendo l'ordine
+    seen = set()
+    unique_paths = []
+    for p in paths_to_attach:
+        if p and p not in seen and os.path.exists(p):
+            seen.add(p)
+            unique_paths.append(p)
+
+    for path in unique_paths:
         try:
-            ctype, encoding = mimetypes.guess_type(attachment_path)
+            ctype, encoding = mimetypes.guess_type(path)
             if ctype is None or encoding is not None:
                 ctype = "application/octet-stream"
             maintype, subtype = ctype.split("/", 1)
-            with open(attachment_path, "rb") as fp:
+            with open(path, "rb") as fp:
                 file_part = MIMEBase(maintype, subtype)
                 file_part.set_payload(fp.read())
             encoders.encode_base64(file_part)
-            filename = os.path.basename(attachment_path)
+            filename = os.path.basename(path)
+            # Pulisce il prefisso UUID dai filename salvati con uuid
+            if "_" in filename and len(filename.split("_")[0]) == 8:
+                filename = "_".join(filename.split("_")[1:])
+            elif filename.startswith("tpl_") and "_" in filename[4:]:
+                # Rimuove prefisso tpl_xxxxxxxx_
+                parts = filename.split("_", 2)
+                if len(parts) >= 3:
+                    filename = parts[2]
             file_part.add_header("Content-Disposition", "attachment", filename=filename)
             msg.attach(file_part)
             logger.info(f"📎 Allegato aggiunto: {filename}")
         except Exception as e:
-            logger.error(f"❌ Errore allegato: {e}")
+            logger.error(f"❌ Errore allegato {path}: {e}")
 
     if PROVIDER == "dry_run":
         from pathlib import Path

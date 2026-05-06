@@ -10,6 +10,7 @@ import io
 import logging
 import uuid
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import quote
 
 from fastapi import (
@@ -37,6 +38,13 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
 )
 
+ITALY_TZ = ZoneInfo("Europe/Rome")
+
+
+def _now_italy():
+    """Restituisce datetime corrente in fuso orario italiano (senza tzinfo per compatibilità DB)."""
+    return datetime.now(ITALY_TZ).replace(tzinfo=None)
+
 app = FastAPI(title="Email Marketing Pro")
 
 SECRET = os.getenv("SESSION_SECRET", "change-me-in-production-32chars-min")
@@ -51,65 +59,189 @@ PIXEL = (
     b"\x00\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
 )
 
-# Template predefiniti per la galleria
+# Template predefiniti per la galleria — design professionali e moderni
 PREMADE_TEMPLATES = [
     {
         "id": "minimal",
-        "name": "Minimal",
-        "preview": "Design pulito e moderno",
-        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:auto;padding:32px;background:#ffffff;color:#1e293b;line-height:1.6;">
-<h2 style="color:#1e293b;font-size:24px;margin:0 0 16px;">Ciao {{ nome }},</h2>
-<p style="color:#475569;margin:0 0 16px;">{{ variabile1 }}</p>
-<p style="color:#475569;margin:0 0 24px;">{{ variabile2 }}</p>
-<a href="https://example.com" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Scopri di più</a>
+        "name": "Minimal Clean",
+        "preview": "Pulito ed elegante",
+        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+<div style="padding:48px 40px;">
+<div style="width:48px;height:4px;background:#4f46e5;margin-bottom:32px;"></div>
+<h1 style="color:#0f172a;font-size:32px;font-weight:700;margin:0 0 24px;line-height:1.2;letter-spacing:-0.5px;">Ciao {{ nome }},</h1>
+<p style="color:#475569;font-size:17px;line-height:1.7;margin:0 0 20px;">{{ variabile1 }}</p>
+<p style="color:#475569;font-size:17px;line-height:1.7;margin:0 0 32px;">{{ variabile2 }}</p>
+<a href="https://example.com" style="display:inline-block;background:#0f172a;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Scopri di più →</a>
+<p style="color:#94a3b8;font-size:14px;margin:40px 0 0;line-height:1.6;">Cordiali saluti,<br><strong style="color:#475569;">Il team</strong></p>
+</div>
 </div>""",
     },
     {
         "id": "corporate",
-        "name": "Corporate",
-        "preview": "Business professionale",
-        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;">
-<div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);color:#fff;padding:32px 24px;text-align:center;">
-<h1 style="margin:0;font-size:28px;">{{ variabile1 }}</h1>
+        "name": "Corporate Blue",
+        "preview": "Business autorevole",
+        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+<div style="background:linear-gradient(135deg,#1e40af 0%,#3730a3 100%);color:#ffffff;padding:48px 40px;text-align:center;">
+<h1 style="margin:0 0 12px;font-size:28px;font-weight:700;letter-spacing:-0.5px;">{{ variabile1 }}</h1>
+<p style="margin:0;opacity:0.9;font-size:16px;">{{ variabile2 }}</p>
 </div>
-<div style="padding:32px 24px;">
-<p style="color:#1e293b;font-size:16px;margin:0 0 16px;">Gentile {{ nome }} {{ cognome }},</p>
-<p style="color:#475569;line-height:1.6;margin:0 0 24px;">{{ variabile2 }}</p>
-<a href="https://example.com" style="display:inline-block;background:#1e293b;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;">Maggiori informazioni</a>
+<div style="padding:40px;">
+<p style="color:#0f172a;font-size:16px;margin:0 0 16px;font-weight:500;">Gentile {{ nome }} {{ cognome }},</p>
+<p style="color:#475569;line-height:1.7;font-size:15px;margin:0 0 24px;">{{ variabile3 }}</p>
+<div style="background:#f8fafc;border-left:4px solid #1e40af;padding:16px 20px;margin:0 0 32px;">
+<p style="color:#475569;margin:0;font-size:14px;line-height:1.6;font-style:italic;">{{ variabile4 }}</p>
+</div>
+<div style="text-align:center;">
+<a href="https://example.com" style="display:inline-block;background:#1e40af;color:#ffffff;padding:14px 36px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;">Maggiori informazioni</a>
+</div>
+</div>
+<div style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+<p style="color:#94a3b8;margin:0;font-size:13px;">Cordiali saluti</p>
 </div>
 </div>""",
     },
     {
         "id": "promo",
-        "name": "Promo",
-        "preview": "Offerte e sconti",
-        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:auto;background:#ffffff;border:2px solid #f59e0b;">
-<div style="background:linear-gradient(135deg,#f59e0b 0%,#ef4444 100%);color:#fff;padding:40px 24px;text-align:center;">
-<div style="font-size:14px;letter-spacing:3px;opacity:.9;margin-bottom:8px;">OFFERTA SPECIALE</div>
-<h1 style="margin:0;font-size:32px;">{{ variabile1 }}</h1>
+        "name": "Promo Bold",
+        "preview": "Offerte ed eventi",
+        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+<div style="background:linear-gradient(135deg,#f97316 0%,#dc2626 100%);color:#ffffff;padding:56px 40px;text-align:center;">
+<div style="font-size:13px;letter-spacing:4px;opacity:0.95;margin-bottom:12px;text-transform:uppercase;font-weight:600;">⚡ Offerta Speciale</div>
+<h1 style="margin:0 0 16px;font-size:42px;font-weight:800;line-height:1.1;letter-spacing:-1px;">{{ variabile1 }}</h1>
+<p style="margin:0;font-size:18px;opacity:0.95;">{{ variabile2 }}</p>
 </div>
-<div style="padding:32px 24px;">
-<p style="color:#1e293b;font-size:18px;margin:0 0 16px;">Ciao {{ nome }},</p>
-<p style="color:#475569;line-height:1.6;margin:0 0 24px;">{{ variabile2 }}</p>
+<div style="padding:40px;">
+<p style="color:#0f172a;font-size:18px;margin:0 0 20px;font-weight:500;">Ciao {{ nome }}!</p>
+<p style="color:#475569;line-height:1.7;font-size:16px;margin:0 0 32px;">{{ variabile3 }}</p>
+<div style="background:#fef3c7;border-radius:12px;padding:24px;margin:0 0 32px;text-align:center;">
+<div style="color:#92400e;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Codice Sconto</div>
+<div style="color:#78350f;font-size:32px;font-weight:800;letter-spacing:3px;font-family:monospace;">{{ variabile4 }}</div>
+</div>
 <div style="text-align:center;">
-<a href="https://example.com" style="display:inline-block;background:#ef4444;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px;">Approfitta ora</a>
+<a href="https://example.com" style="display:inline-block;background:#dc2626;color:#ffffff;padding:18px 48px;border-radius:8px;text-decoration:none;font-weight:700;font-size:17px;box-shadow:0 4px 12px rgba(220,38,38,0.3);">Approfitta Ora →</a>
 </div>
+<p style="color:#94a3b8;font-size:13px;margin:24px 0 0;text-align:center;">{{ variabile5 }}</p>
 </div>
 </div>""",
     },
     {
         "id": "newsletter",
-        "name": "Newsletter",
+        "name": "Newsletter Modern",
         "preview": "Aggiornamenti periodici",
-        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:auto;background:#ffffff;border-top:4px solid #4f46e5;">
-<div style="padding:24px;text-align:center;border-bottom:1px solid #e2e8f0;">
-<h1 style="color:#4f46e5;margin:0;font-size:24px;">{{ variabile1 }}</h1>
-<p style="color:#94a3b8;font-size:14px;margin:8px 0 0;">Newsletter — {{ campaign }}</p>
+        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+<div style="padding:32px 40px;border-bottom:3px solid #4f46e5;">
+<div style="display:flex;align-items:center;justify-content:space-between;">
+<h1 style="color:#4f46e5;margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">{{ variabile1 }}</h1>
+<span style="color:#94a3b8;font-size:13px;text-transform:uppercase;letter-spacing:1px;">{{ campaign }}</span>
 </div>
-<div style="padding:32px 24px;">
-<p style="color:#1e293b;font-size:16px;margin:0 0 16px;">Ciao {{ nome }},</p>
-<p style="color:#475569;line-height:1.6;margin:0 0 24px;">{{ variabile2 }}</p>
-<p style="color:#475569;line-height:1.6;margin:0 0 24px;">{{ variabile3 }}</p>
+</div>
+<div style="padding:40px;">
+<p style="color:#0f172a;font-size:17px;margin:0 0 24px;font-weight:500;">Ciao {{ nome }} 👋</p>
+<h2 style="color:#0f172a;font-size:22px;margin:32px 0 16px;font-weight:700;line-height:1.3;">{{ variabile2 }}</h2>
+<p style="color:#475569;line-height:1.7;font-size:16px;margin:0 0 24px;">{{ variabile3 }}</p>
+<div style="background:#f8fafc;border-radius:12px;padding:24px;margin:24px 0;">
+<h3 style="color:#0f172a;font-size:16px;margin:0 0 8px;font-weight:600;">{{ variabile4 }}</h3>
+<p style="color:#64748b;font-size:14px;margin:0;line-height:1.6;">{{ variabile5 }}</p>
+</div>
+<div style="text-align:center;margin:32px 0 0;">
+<a href="https://example.com" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Continua a leggere</a>
+</div>
+</div>
+</div>""",
+    },
+    {
+        "id": "event",
+        "name": "Event Invitation",
+        "preview": "Inviti a eventi e congressi",
+        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;background:#0f172a;color:#ffffff;">
+<div style="padding:60px 40px 40px;text-align:center;">
+<div style="font-size:14px;letter-spacing:6px;color:#94a3b8;text-transform:uppercase;margin-bottom:16px;">Save the Date</div>
+<h1 style="margin:0 0 16px;font-size:44px;font-weight:800;letter-spacing:-1.5px;line-height:1.1;background:linear-gradient(135deg,#a78bfa 0%,#f0abfc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{{ variabile1 }}</h1>
+<p style="color:#cbd5e1;font-size:18px;margin:0;line-height:1.5;">{{ variabile2 }}</p>
+</div>
+<div style="padding:0 40px 40px;">
+<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;margin-bottom:32px;">
+<div style="display:table;width:100%;">
+<div style="display:table-row;">
+<div style="display:table-cell;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.1);width:40%;color:#94a3b8;font-size:13px;text-transform:uppercase;letter-spacing:1px;">📅 Data</div>
+<div style="display:table-cell;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.1);color:#ffffff;font-size:16px;font-weight:600;">{{ variabile3 }}</div>
+</div>
+<div style="display:table-row;">
+<div style="display:table-cell;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.1);color:#94a3b8;font-size:13px;text-transform:uppercase;letter-spacing:1px;">📍 Luogo</div>
+<div style="display:table-cell;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.1);color:#ffffff;font-size:16px;font-weight:600;">{{ variabile4 }}</div>
+</div>
+<div style="display:table-row;">
+<div style="display:table-cell;padding:12px 0;color:#94a3b8;font-size:13px;text-transform:uppercase;letter-spacing:1px;">🎟️ Info</div>
+<div style="display:table-cell;padding:12px 0;color:#ffffff;font-size:16px;font-weight:600;">{{ variabile5 }}</div>
+</div>
+</div>
+</div>
+<p style="color:#cbd5e1;line-height:1.7;font-size:15px;margin:0 0 32px;">Caro {{ nome }} {{ cognome }}, sarà un piacere averti con noi.</p>
+<div style="text-align:center;">
+<a href="https://example.com" style="display:inline-block;background:linear-gradient(135deg,#a78bfa 0%,#f0abfc 100%);color:#0f172a;padding:16px 40px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;">Conferma Partecipazione</a>
+</div>
+</div>
+</div>""",
+    },
+    {
+        "id": "announcement",
+        "name": "Announcement Card",
+        "preview": "Annunci importanti",
+        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:40px 20px;">
+<div style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
+<div style="background:linear-gradient(135deg,#10b981 0%,#0891b2 100%);height:8px;"></div>
+<div style="padding:48px 40px;">
+<div style="display:inline-block;background:#ecfdf5;color:#047857;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:24px;">📢 Annuncio</div>
+<h1 style="color:#0f172a;font-size:30px;font-weight:800;margin:0 0 20px;line-height:1.2;letter-spacing:-0.5px;">{{ variabile1 }}</h1>
+<p style="color:#475569;font-size:17px;line-height:1.7;margin:0 0 24px;">Ciao {{ nome }},</p>
+<p style="color:#475569;font-size:16px;line-height:1.7;margin:0 0 24px;">{{ variabile2 }}</p>
+<p style="color:#475569;font-size:16px;line-height:1.7;margin:0 0 32px;">{{ variabile3 }}</p>
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:0 0 32px;">
+<p style="color:#047857;margin:0;font-size:14px;line-height:1.6;font-weight:500;">✓ {{ variabile4 }}</p>
+</div>
+<a href="https://example.com" style="display:inline-block;background:#0f172a;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Scopri di più</a>
+</div>
+</div>
+</div>""",
+    },
+    {
+        "id": "thanks",
+        "name": "Thank You",
+        "preview": "Ringraziamenti",
+        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+<div style="padding:60px 40px;text-align:center;">
+<div style="font-size:64px;margin-bottom:24px;line-height:1;">🙏</div>
+<h1 style="color:#0f172a;font-size:36px;font-weight:800;margin:0 0 16px;letter-spacing:-1px;">Grazie {{ nome }}!</h1>
+<p style="color:#64748b;font-size:18px;margin:0 0 40px;line-height:1.6;">{{ variabile1 }}</p>
+<div style="background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);border-radius:16px;padding:32px;margin:0 0 32px;">
+<p style="color:#78350f;font-size:16px;line-height:1.7;margin:0;font-weight:500;">{{ variabile2 }}</p>
+</div>
+<p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 32px;">{{ variabile3 }}</p>
+<a href="https://example.com" style="display:inline-block;background:#0f172a;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Continua →</a>
+</div>
+</div>""",
+    },
+    {
+        "id": "medical",
+        "name": "Medical / Pro",
+        "preview": "Settore medico-scientifico",
+        "html": """<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+<div style="background:#0c4a6e;padding:32px 40px;color:#ffffff;">
+<div style="font-size:13px;letter-spacing:2px;opacity:0.85;text-transform:uppercase;margin-bottom:8px;">{{ variabile5 }}</div>
+<h1 style="margin:0;font-size:26px;font-weight:700;letter-spacing:-0.3px;">{{ variabile1 }}</h1>
+</div>
+<div style="padding:40px;">
+<p style="color:#0f172a;font-size:16px;margin:0 0 20px;font-weight:500;">Egregio/a Dott./Dott.ssa {{ cognome }},</p>
+<p style="color:#475569;line-height:1.8;font-size:15px;margin:0 0 24px;">{{ variabile2 }}</p>
+<p style="color:#475569;line-height:1.8;font-size:15px;margin:0 0 32px;">{{ variabile3 }}</p>
+<div style="border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:0 0 32px;">
+<div style="color:#0c4a6e;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">📋 Programma</div>
+<p style="color:#475569;font-size:14px;line-height:1.6;margin:0;">{{ variabile4 }}</p>
+</div>
+<div style="text-align:center;">
+<a href="https://example.com" style="display:inline-block;background:#0c4a6e;color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;">Iscriviti / Maggiori Info</a>
+</div>
+<p style="color:#94a3b8;font-size:13px;margin:32px 0 0;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:20px;">Per qualsiasi informazione potete contattarci all'indirizzo riportato in calce.</p>
 </div>
 </div>""",
     },
@@ -437,9 +569,9 @@ setInterval(loadStats, 30000);
 def api_test(req: Request = Depends(require_auth)):
     try:
         ok, _ = send_email(
-            "sclerotherapycongress@gmail.com", "Test Email Marketing Pro",
+            "test@prova.it", "Test Email Marketing Pro",
             "<h1>Email di test</h1><p>Questa è un'email di prova generata dal sistema.</p>"
-            '<p><a href="https://valet.it">Clicca qui per testare il tracking</a></p>',
+            '<p><a href="https://example.com">Clicca qui per testare il tracking</a></p>',
         )
         return HTMLResponse("✅ Email di test inviata correttamente" if ok else "❌ Errore invio test", status_code=200 if ok else 500)
     except Exception as e:
@@ -532,16 +664,25 @@ def unsubscribe(email: str = Query(...), db: Session = Depends(get_db)):
         content = """
 <div class="text-5xl mb-4">👋</div>
 <h2 class="text-2xl font-bold text-slate-800 mb-3">Ci dispiace vederti andare</h2>
-<p class="text-slate-600 mb-4 leading-relaxed">
+<p class="text-slate-600 mb-3 leading-relaxed">
 La tua disiscrizione è stata registrata. Non riceverai più nostre comunicazioni.
 </p>
-<p class="text-slate-500 text-sm italic">Grazie del tempo che ci hai dedicato.</p>
+<p class="text-slate-500 text-sm italic mb-6">Grazie del tempo che ci hai dedicato.</p>
+<hr class="my-4 border-slate-200">
+<h3 class="text-lg font-semibold text-slate-700 mb-2">We're sorry to see you go</h3>
+<p class="text-slate-600 mb-3 leading-relaxed text-sm">
+Your unsubscription has been registered. You will no longer receive our communications.
+</p>
+<p class="text-slate-500 text-sm italic">Thank you for the time you have dedicated to us.</p>
 """
     else:
         content = """
 <div class="text-5xl mb-4">⚠️</div>
 <h2 class="text-2xl font-bold text-slate-800 mb-3">Email non trovata</h2>
-<p class="text-slate-600">L'indirizzo email indicato non risulta nelle nostre liste.</p>
+<p class="text-slate-600 mb-4">L'indirizzo email indicato non risulta nelle nostre liste.</p>
+<hr class="my-4 border-slate-200">
+<h3 class="text-lg font-semibold text-slate-700 mb-2">Email not found</h3>
+<p class="text-slate-600 text-sm">The email address provided is not in our lists.</p>
 """
     return HTMLResponse(UNSUBSCRIBE_PAGE.replace("__CONTENT__", content))
 
@@ -551,6 +692,7 @@ La tua disiscrizione è stata registrata. Non riceverai più nostre comunicazion
 def track_open(tid: str, req: Request, email: str = Query(""), campaign_id: int = Query(None), db: Session = Depends(get_db)):
     db.add(EmailEvent(
         track_id=tid, email=email, campaign_id=campaign_id, event_type="open",
+        timestamp=_now_italy(),
         ip=req.client.host if req.client else "",
         user_agent=req.headers.get("user-agent", "")[:500],
     ))
@@ -566,6 +708,7 @@ def track_click(lid: str, req: Request, email: str = Query(""), campaign_id: int
     db.add(EmailEvent(
         track_id=lid, email=email or link.email, campaign_id=campaign_id or link.campaign_id,
         event_type="click",
+        timestamp=_now_italy(),
         ip=req.client.host if req.client else "",
         user_agent=req.headers.get("user-agent", "")[:500],
     ))
@@ -1098,6 +1241,7 @@ def tpl_ui(req: Request = Depends(require_auth)):
 <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/lang/summernote-it-IT.min.js"></script>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
@@ -1145,6 +1289,20 @@ Crea / Modifica Template
 </div>
 </div>
 
+<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+<div class="flex items-start gap-3">
+<svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+<div class="text-sm text-blue-900">
+<strong>Suggerimenti utili:</strong>
+<ul class="list-disc ml-5 mt-1 space-y-0.5 text-blue-800">
+<li>Per modificare il testo di un <strong>pulsante</strong>: doppio click sul testo del pulsante per selezionarlo, poi sostituiscilo (NON cancellare l'intero pulsante).</li>
+<li>Per modificare lo stile (titolo H1, H2, paragrafo): seleziona il testo e usa il menu <strong>"Stile"</strong> in alto a sinistra.</li>
+<li>Usa la modalità <strong>"Code View"</strong> (icona &lt;/&gt;) per modifiche HTML avanzate.</li>
+</ul>
+</div>
+</div>
+</div>
+
 <textarea id="summernote"></textarea>
 
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -1173,16 +1331,24 @@ Allegato (opzionale)
 $(document).ready(function() {
   $('#summernote').summernote({
     placeholder: 'Scrivi qui il contenuto della tua email...',
-    tabsize: 2, height: 400,
+    tabsize: 2, height: 450,
+    lang: 'it-IT',
     toolbar: [
-      ['style', ['style']],
-      ['font', ['bold', 'italic', 'underline', 'clear']],
-      ['color', ['color']],
-      ['para', ['ul', 'ol', 'paragraph']],
-      ['table', ['table']],
-      ['insert', ['link', 'picture']],
+      ['style', ['style', 'bold', 'italic', 'underline', 'strikethrough', 'clear']],
+      ['fontsize', ['fontsize', 'fontname']],
+      ['color', ['color', 'forecolor', 'backcolor']],
+      ['para', ['ul', 'ol', 'paragraph', 'height']],
+      ['table', ['table', 'hr']],
+      ['insert', ['link', 'picture', 'video']],
       ['view', ['fullscreen', 'codeview', 'help']]
-    ]
+    ],
+    fontSizes: ['8', '9', '10', '11', '12', '14', '16', '18', '24', '36', '48'],
+    fontNames: ['Arial', 'Helvetica', 'Inter', 'Georgia', 'Tahoma', 'Times New Roman', 'Verdana', 'Trebuchet MS'],
+    callbacks: {
+      onPaste: function(e) {
+        // Mantieni la formattazione originale al paste invece di rimuoverla
+      }
+    }
   });
 
   // Carica galleria predefiniti
